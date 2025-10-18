@@ -22,7 +22,7 @@ export function initializeLucia(db: D1Database) {
         sameSite: 'lax',
       },
     },
-    getUserAttributes: (attributes) => {
+    getUserAttributes: (attributes: any) => {
       return {
         email: attributes.email,
         stripe_customer_id: attributes.stripe_customer_id,

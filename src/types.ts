@@ -126,9 +126,10 @@ export interface DatabaseUserAttributes {
   subscription_tier: string;
 }
 
-declare module 'lucia' {
-  interface Register {
-    Lucia: typeof lucia;
-    DatabaseUserAttributes: DatabaseUserAttributes;
-  }
+/**
+ * Hono Context Variables
+ */
+export interface HonoVariables {
+  user: User;
+  session: Session;
 }

@@ -8,10 +8,11 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { serveStatic } from 'hono/cloudflare-workers';
 import { renderToString } from 'preact-render-to-string';
 
-import type { Env, User, ContentAsset, Subscriber } from './types';
+import type { Env, User, ContentAsset, Subscriber, HonoVariables } from './types';
 
 // Middleware
 import { requireAuth, optionalAuth } from './middleware/auth';
@@ -37,7 +38,7 @@ import { PublicContentPage } from './views/public-content';
 // Utils
 import { generatePDF, formatContentForPDF } from './utils/pdf';
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: HonoVariables }>();
 
 // Middleware
 app.use('*', logger());
@@ -117,8 +118,8 @@ app.get('/auth/callback', async (c) => {
 
     // Create session using Lucia
     const lucia = initializeLucia(c.env.DB);
-    const session = await lucia.createSession(user.id, {});
-    const sessionCookie = lucia.createSessionCookie(session.id);
+    const sessionObj = await lucia.createSession(user.id, {});
+    const sessionCookie = lucia.createSessionCookie(sessionObj.id);
 
     // Set cookie and redirect
     c.header('Set-Cookie', sessionCookie.serialize());
@@ -134,10 +135,10 @@ app.get('/auth/callback', async (c) => {
  */
 app.post('/auth/logout', requireAuth, async (c) => {
   try {
-    const session = c.get('session');
+    const sessionData = c.get('session');
     const lucia = initializeLucia(c.env.DB);
 
-    await lucia.invalidateSession(session.id);
+    await lucia.invalidateSession(sessionData.id);
 
     const sessionCookie = lucia.createBlankSessionCookie();
     c.header('Set-Cookie', sessionCookie.serialize());
@@ -386,7 +387,7 @@ app.get('/v/:assetId', rateLimits.content, async (c) => {
     }
 
     // Check if user already has access (via cookie)
-    const subscriberId = c.req.cookie(`access_${assetId}`);
+    const subscriberId = getCookie(c, `access_${assetId}`);
     const hasAccess = !!subscriberId;
 
     // Increment view count
@@ -461,11 +462,18 @@ app.post('/v/:assetId', rateLimits.content, async (c) => {
       .run();
 
     // Set access cookie and redirect
-    c.header('Set-Cookie', `access_${assetId}=${subscriberId}; Path=/; Max-Age=86400; HttpOnly`);
+    setCookie(c, `access_${assetId}`, subscriberId, {
+      path: '/',
+      maxAge: 86400,
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax',
+    });
     return c.redirect(`/v/${assetId}`);
   } catch (error) {
     console.error('Lead capture error:', error);
-    return c.redirect(`/v/${assetId}?error=` + encodeURIComponent('An error occurred'));
+    const currentAssetId = c.req.param('assetId');
+    return c.redirect(`/v/${currentAssetId}?error=` + encodeURIComponent('An error occurred'));
   }
 });
 
@@ -474,10 +482,10 @@ app.post('/v/:assetId', rateLimits.content, async (c) => {
  */
 app.get('/api/content/:id/download', rateLimits.content, async (c) => {
   try {
-    const assetId = c.req.param('id');
+    const contentId = c.req.param('id');
 
     // Verify access via cookie
-    const subscriberId = c.req.cookie(`access_${assetId}`);
+    const subscriberId = getCookie(c, `access_${contentId}`);
     if (!subscriberId) {
       return c.json({ error: 'Access denied' }, 403);
     }
@@ -486,7 +494,7 @@ app.get('/api/content/:id/download', rateLimits.content, async (c) => {
     const asset = await c.env.DB.prepare(
       'SELECT * FROM content_assets WHERE id = ?'
     )
-      .bind(assetId)
+      .bind(contentId)
       .first<ContentAsset>();
 
     if (!asset) {
@@ -501,7 +509,7 @@ app.get('/api/content/:id/download', rateLimits.content, async (c) => {
     }
 
     // Return file
-    return new Response(object.body, {
+    return new Response(object.body as any, {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${asset.title}.pdf"`,

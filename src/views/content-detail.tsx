@@ -59,7 +59,12 @@ export function ContentDetailPage({
                     class="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm"
                   />
                   <button
-                    onclick={`navigator.clipboard.writeText('${fullUrl}'); alert('Link copied!');`}
+                    onClick={() => {
+                      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                        navigator.clipboard.writeText(fullUrl);
+                        alert('Link copied!');
+                      }
+                    }}
                     class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700"
                   >
                     Copy Link
