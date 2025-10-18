@@ -1,0 +1,40 @@
+name = "agents-exclusive-access"
+main = "src/index.ts"
+compatibility_date = "2024-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "agents_exclusive_access_db"
+database_id = "placeholder-create-with-wrangler-d1-create"
+
+# R2 Buckets
+[[r2_buckets]]
+binding = "CONTENT_BUCKET"
+bucket_name = "agent-content-assets"
+
+# KV Namespaces
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "placeholder-create-with-wrangler-kv-namespace-create"
+
+[[kv_namespaces]]
+binding = "RATE_LIMITING"
+id = "placeholder-create-with-wrangler-kv-namespace-create"
+
+# Workers AI
+[ai]
+binding = "AI"
+
+# Secrets (managed via wrangler secret put)
+# - STRIPE_API_KEY
+# - STRIPE_WEBHOOK_SECRET
+# - AUTH_SECRET
+# - SENDGRID_API_KEY (or other email service)
+
+[build]
+command = "npm run build"
+
+[observability]
+enabled = true
